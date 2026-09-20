@@ -667,6 +667,23 @@ function summaryHtml(){
   const bullets=[];
   bullets.push('📐 <b>异常口径</b>：仅统计已开始活动（待开始 '+c.up+' 条不参与判定）｜ 价匹不一致 '+c.abnPrice+' · 毛利率偏低 '+c.abnMargin+' · 3P购物车 '+c.abnBuybox);
   if(c.vc||c.sc)bullets.push('🔗 <b>双链路</b>：VC '+c.vc+' 条 · SC '+c.sc+' 条 · 重叠 '+c.both+' 条 ｜ VC Funding 合计 $'+(Math.round(c.vcFund*100)/100).toLocaleString()+(c.scCost?' ｜ SC LD费预估 $'+(Math.round(c.scCost*100)/100).toLocaleString():''));
+  try {
+    if (typeof window.__front === 'object' && window.__front && Object.keys(window.__front).length) {
+      const _ck = window.__front;
+      const _need = items.filter(function (it) { return _normType(it.type) !== 'PD'; });
+      const _done = _need.filter(function (it) { return _ck[it.asin]; });
+      const _blk = _done.filter(function (it) { return _ck[it.asin].blocked; }).length;
+      const _bad = _done.filter(function (it) {
+        const c = _ck[it.asin];
+        return c && !c.blocked && !frontVerdict(it, c).cls.match(/ok/);
+      }).length;
+      const _at = Object.keys(_ck).map(function (a) { return _ck[a].checked_at || ''; }).sort().pop() || '';
+      bullets.push('🔍 <b>前台状态（按类型对号）</b>：需核查 ' + _need.length + ' 条 · 已核查 ' + _done.length
+        + ' ｜ ✅ 前台已显示 ' + (_done.length - _bad - _blk) + ' ｜ ❌ 前台未显示 ' + _bad
+        + ' ｜ ⚠️ 报错(被拦) ' + _blk + ' ｜ 核查时间 ' + (_at || '—')
+        + '　<span style="color:var(--text2)">口径：BD/LD=Limited time deal 标 · CP=券 · DC=划线价+折扣 · PD=前台无标识不核查</span>');
+    }
+  } catch (e) {}
   if(miss.length)bullets.push('🔴 <b>进行中·价匹不一致 '+miss.length+'</b>：'+miss.map(it=>it.asin+' 提报'+it.deal+' vs Live '+it.live).join('；'));
   if(low.length)bullets.push('🟠 <b>进行中·毛利率偏低(&lt;12%) '+low.length+'</b>：'+low.map(it=>it.asin+' '+num(it.margin)+'%').join('；'));
   if(missUp.length)bullets.push('⏳ <b>待开始·提报价≠当前Live '+missUp.length+'</b>（活动未生效，不计入异常，生效后复核）：'+missUp.map(it=>it.asin+' 提报'+it.deal+' vs 当前'+it.live).join('；'));
@@ -680,6 +697,7 @@ function summaryHtml(){
   return h;
 }
 function render(){
+  try{(data&&data.items?data.items:[]).forEach(function(it){it.type=_normType(it.type);});}catch(e){}
   if(!data)return;
   const c=counts();
   const sub='US '+(data.meta&&data.meta.date||'—')+' (PT) | 更新 '+(data.meta&&data.meta.time||'—')+' | 数据来源: '+esc(data._src||'?')+' | 共 '+(data.items?data.items.length:0)+' 条';
@@ -1177,13 +1195,13 @@ const TH_VC = '<tr>'
   + '<th>品类</th><th>商品编码</th><th>大厂号</th><th class="num">LP</th><th class="num">DEAL<br>PRICE</th>'
   + '<th class="num">CP</th><th class="num">Funding</th><th class="num">PO毛利</th>'
   + '<th class="num">开始</th><th class="num">结束</th><th>类型</th><th>运营</th>'
-  + '<th class="num">前台价</th><th class="num">价差</th><th style="text-align:center">标</th><th>购物车/卖家</th></tr>';
+  + '<th class="num">前台价</th><th class="num">价差</th><th style="text-align:center">前台状态</th><th>购物车/卖家</th></tr>';
 const TH_SC = '<tr>'
   + '<th class="c-asin"><span title="全选/全不选" style="cursor:pointer" onclick="selAllCb(document.querySelectorAll(\'.cb-asin:checked\').length===0)">☑</span> ASIN</th>'
   + '<th>品类</th><th>店铺</th><th>商品编码</th><th>大厂号</th><th class="num">SC提报价</th>'
   + '<th class="num">前台价</th><th class="num">折扣</th><th class="num">Funding</th><th class="num">SC毛利</th>'
   + '<th class="num">开始</th><th class="num">结束</th><th>类型</th><th>运营</th>'
-  + '<th class="num">前台价</th><th class="num">价差</th><th style="text-align:center">标</th></tr>';
+  + '<th class="num">前台价</th><th class="num">价差</th><th style="text-align:center">前台状态</th></tr>';
 
 /* ---------------- 小工具 ---------------- */
 function fc(asin) { return window.__front[asin] || null; }
@@ -1346,15 +1364,11 @@ function _normType(t) {
 }
 const TYPE_ORDER = ['BD', 'LD', 'PD', 'CP', 'DC'];
 function _typeList() {
-  const seen = [];
-  (data && data.items ? data.items : []).forEach(function (i) {
-    const t = String(i.type || 'BD').toUpperCase();
-    if (t && seen.indexOf(t) < 0) seen.push(t);
-  });
-  return seen.sort(function (a, b) {
-    const ia = TYPE_ORDER.indexOf(_normType(a)), ib = TYPE_ORDER.indexOf(_normType(b));
-    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
-  });
+  /* 固定给出 SC/VC 的全部促销类型，保证 CP / DC / LD 有数据时不必等出现才可筛 */
+  return ['BD', 'LD', 'PD', 'CP', 'DC'].concat(
+    (data && data.items ? data.items : []).map(function (i) { return String(i.type || '').toUpperCase(); })
+      .filter(function (t) { return t && ['BD', 'LD', 'PD', 'CP', 'DC'].indexOf(t) < 0; })
+  ).filter(function (t, i, a) { return a.indexOf(t) === i; });
 }
 function _pass(it, ch) {
 
@@ -1409,7 +1423,7 @@ function _opsHtml() {
   const rows = Object.entries(by).sort(function (a, b) { return b[1].tot - a[1].tot; });
   if (!rows.length) return '<div class="empty">暂无数据</div>';
   let h = '<table class="op-table"><thead><tr><th>运营</th><th>活动数</th><th>BD/LD</th><th>PD</th><th>CP/DC</th>'
-    + '<th>待开始</th><th>Funding合计</th><th>抓到前台价</th><th>有BD标</th><th>抓到LP</th><th>抓取覆盖率</th></tr></thead><tbody>';
+    + '<th>待开始</th><th>Funding合计</th><th>抓到前台价</th><th>有前台标</th><th>抓到LP</th><th>抓取覆盖率</th></tr></thead><tbody>';
   rows.forEach(function (pair) {
     const op = pair[0], g = pair[1];
     const cov = Math.round(g.live / g.tot * 100);
@@ -1448,6 +1462,7 @@ function renderMap() {
 
 /* ---------------- 主渲染 ---------------- */
 function render() {
+  try{(data&&data.items?data.items:[]).forEach(function(it){it.type=_normType(it.type);});}catch(e){}
   if (!data) return;
   document.getElementById('hdrSub').textContent =
     'US ' + ((data.meta && data.meta.date) || '—') + ' (PT) | 更新 ' + ((data.meta && data.meta.time) || '—')
