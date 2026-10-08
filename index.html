@@ -306,13 +306,13 @@ th.th-grp, .th-grp th{text-align:center}
   padding:8px 14px;display:flex;gap:16px;align-items:center;flex-wrap:wrap;line-height:1.5}
 #onlineBar b{font-size:12.5px}
 #onlineBar .pill{background:rgba(255,255,255,.12);border-radius:999px;padding:2px 9px}
-[onclick*="uploadData"],[onclick*="refreshLive"],[onclick*="grabMargin"],[onclick*="startFront"],
-[onclick*="batchCheck"],[onclick*="cleanData"],[href="/template"],[href="/api/mapping.xlsx"],
+[onclick*="refreshLive"],[onclick*="grabMargin"],[onclick*="startFront"],
+[onclick*="batchCheck"],[onclick*="cleanData"],[href="/api/mapping.xlsx"],
 [id*="fetchState"],#chk-bar,#opName{display:none !important}
 </style>
 </head>
 <body>
-<div id="onlineBar">🔗 <b>活动监控看板 · 在线版</b><span class="pill">只读快照</span><span>数据更新：2026-10-08 17:53:03</span><span>前台核查：2026-10-08 17:51:51</span><span title="页面里抓到任意促销标识就算「有标」；表格里的 ✅/❌ 是按该行促销类型逐条判定的，两者口径不同">前台抓取 51 个 ASIN：页面有促销标 50 ｜ 无标 1 ｜ 报错 0</span><span class="pill">上传人：向海 52 条</span><span style="opacity:.7">在线页不抓 Amazon、不能上传；核查 / 上传请在本机 172.22.23.200:8901 看板做，再一键推送</span></div>
+<div id="onlineBar">🔗 <b>活动监控看板 · 在线版</b><span class="pill">只读快照</span><span>数据更新：2026-10-08 17:53:03</span><span>前台核查：2026-10-08 17:51:51</span><span title="页面里抓到任意促销标识就算「有标」；表格里的 ✅/❌ 是按该行促销类型逐条判定的，两者口径不同">前台抓取 51 个 ASIN：页面有促销标 50 ｜ 无标 1 ｜ 报错 0</span><span class="pill">上传人：向海 52 条</span><span style="opacity:.7">提报表模板可直接下载 ｜ 上传数据 / 抓 Amazon / 抓 BI 毛利 必须在本机 172.22.23.200:8901 看板做（在线版没有后端）</span></div>
 <script>
 /* ===== 在线版：屏蔽本地服务 /api + 注入快照（只读） ===== */
 window.__ONLINE__ = true;
@@ -357,6 +357,13 @@ window.__hermes_checks = ONLINE_SNAP;
       window.__front = ONLINE_SNAP;
       if (typeof render === 'function') { try { render(); } catch (e) { } }
       if (typeof refreshTeamLine === 'function') { try { refreshTeamLine(); } catch (e) { } }
+      /* 在线版没有后端：上传等写操作点了直接告诉用户去哪做 */
+      window.uploadData = function () {
+        alert('这是【在线版·只读快照】，不能上传数据。上传/更新请在公司局域网打开本机看板：http://172.22.23.200:8901/ （顶部「上传人」先填上你自己的名字，再选文件上传）');
+      };
+      window.startFront = window.grabMargin = function () {
+        alert('在线版不会去抓 Amazon / BI。请用本机看板：http://172.22.23.200:8901/');
+      };
     }, 400);
   });
 })();
@@ -389,7 +396,7 @@ window.__hermes_checks = ONLINE_SNAP;
         <button class="btn btn-sm" id="mapToggle" onclick="toggleMap()" title="在主页面下方展开/收起『运营商编数据』底表">🧭 运营映射表</button>
         <span class="grow"></span>
         <span id="svcStatus" class="svc"><span class="dot-idle"></span>检测服务…</span>
-        <a class="btn btn-sm btn-pri" href="/template" download="滤清-活动提报表.xlsx">📥 下载模板</a>
+        <a class="btn btn-sm btn-pri" href="template.xlsx" download="滤清-活动提报表.xlsx">📥 下载模板</a>
         <button class="btn btn-sm btn-pri" onclick="uploadData()" title="上传「活动提报表」= 重建数据；上传「链接监控详情导出」= 按 ASIN 只回填提报价/前台价/在售库存">📤 上传数据</button>
       </div>
       <div class="row">
